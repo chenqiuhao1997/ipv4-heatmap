@@ -47,6 +47,7 @@ gdImagePtr image = NULL;
 int colors[NUM_DATA_COLORS];
 int num_colors = NUM_DATA_COLORS;
 int debug = 0;
+int **pixel_value = NULL;
 const char *whitespace = " \t\r\n";
 const char *font_file_or_name = "Luxi Mono:style=Regular";
 const char *legend_orient = "vert";
@@ -72,6 +73,7 @@ extern void set_morton_mode();
 extern int set_order();
 extern void set_crop(const char *);
 extern void set_bits_per_pixel(int);
+extern int get_bits_per_pixel(void);
 
 void savegif(int done);
 
@@ -119,6 +121,14 @@ initialize(void)
     if (reverse_flag)
 	gdImageFill(image, 0, 0, gdImageColorAllocate(image, 255, 255, 255));
 
+	
+    pixel_value = (int**)malloc(h * sizeof(int*));
+    for (int i = 0; i < h; i++) {
+    	pixel_value[i] = (int*)malloc(w * sizeof(int));
+    	for (int j = 0; j < w; j++) {
+    		pixel_value[i][j] = 0;
+    	}
+    }
     /*
      * The default color map ranges from red to blue
      */
@@ -136,29 +146,22 @@ initialize(void)
      * If the input data should be logarithmically scaled, then calculate the
      * value of log_C.
      */
-    if (0.0 != log_A && 0.0 == log_B)
-	log_B = 10.0 * log_A;
+    if (0.0 == log_A) log_A = 1.0;
+    if (0.0 == log_B)
+	log_B = log_A * (double)(1 << get_bits_per_pixel());
     log_C = 255.0 / log(log_B / log_A);
 }
 
 int
 get_pixel_value(unsigned int x, unsigned int y)
 {
-    int color;
-    int k;
-    color = gdImageGetPixel(image, x, y);
-    if (debug)
-	fprintf(stderr, "pixel (%d,%d) has color index %d\n", x, y, color);
-    for (k = 0; k < NUM_DATA_COLORS; k++) {
-	if (colors[k] == color) {
-	    if (debug)
-		fprintf(stderr, "color %d has index %d\n", color, k);
-	    break;
-	}
-    }
-    if (k == NUM_DATA_COLORS)	/* not found */
-	k = 0;
-    return k;
+    return pixel_value[x][y];
+}
+
+void
+add_pixel_value(unsigned int x, unsigned int y, unsigned int val)
+{
+	pixel_value[x][y] += val;
 }
 
 void
@@ -218,21 +221,15 @@ paint(void)
 	 * logarithmically scaled by us.  If no value is given, then find the
 	 * existing value at that point and increment by one.
 	 */
-	t = strtok(NULL, whitespace);
-	if (NULL != t) {
-	    k = atoi(t);
-	    if (accumulate_counts)
-		k += get_pixel_value(x, y);
-	    if (0.0 != log_A) {
-		/*
-		 * apply logarithmic stretching
-		 */
-		k = (int) ((log_C * log((double) k / log_A)) + 0.5);
-	    }
-	} else {
-	    k = get_pixel_value(x, y);
-	    k++;
-	}
+	add_pixel_value(x, y, 1);
+    k = get_pixel_value(x, y);
+
+    if (0.0 != log_A) {
+	/*
+	 * apply logarithmic stretching
+	 */
+	k = (int) ((log_C * log((double) k / log_A)) + 0.5);
+    }
 	if (k < 0)
 	    k = 0;
 	if (k >= NUM_DATA_COLORS)
@@ -251,7 +248,7 @@ watermark(void)
     gdImageStringUp(image,
 	gdFontGetSmall(),
 	gdImageSX(image) - 20, 220,
-	(u_char *) "IPv4 Heatmap / Measurement Factory", color);
+	(u_char *) "Tsinghua", color);
 }
 
 void

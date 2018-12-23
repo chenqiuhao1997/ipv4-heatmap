@@ -95,3 +95,9 @@ set_bits_per_pixel(int bpp)
     if (1 == (addr_space_bits_per_pixel % 2))
 	errx(1, "CIDR bits per pixel must be even");
 }
+
+int
+get_bits_per_pixel(void)
+{
+    return addr_space_bits_per_pixel;
+}
